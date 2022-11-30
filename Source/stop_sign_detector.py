@@ -1,0 +1,81 @@
+import cv2 as cv2
+import numpy as np
+
+class StopSignDetector():
+	def __init__(self, bbox_color = (255, 255, 255), bbox_thickness = 2, bbox_font_color = (255,255,255)):
+		self.labelMap = [
+			"person",         "bicycle",    "car",           "motorbike",     "aeroplane",   "bus",           "train",
+			"truck",          "boat",       "traffic light", "fire hydrant",  "stop sign",   "parking meter", "bench",
+			"bird",           "cat",        "dog",           "horse",         "sheep",       "cow",           "elephant",
+			"bear",           "zebra",      "giraffe",       "backpack",      "umbrella",    "handbag",       "tie",
+			"suitcase",       "frisbee",    "skis",          "snowboard",     "sports ball", "kite",          "baseball bat",
+			"baseball glove", "skateboard", "surfboard",     "tennis racket", "bottle",      "wine glass",    "cup",
+			"fork",           "knife",      "spoon",         "bowl",          "banana",      "apple",         "sandwich",
+			"orange",         "broccoli",   "carrot",        "hot dog",       "pizza",       "donut",         "cake",
+			"chair",          "sofa",       "pottedplant",   "bed",           "diningtable", "toilet",        "tvmonitor",
+			"laptop",         "mouse",      "remote",        "keyboard",      "cell phone",  "microwave",     "oven",
+			"toaster",        "sink",       "refrigerator",  "book",          "clock",       "vase",          "scissors",
+			"teddy bear",     "hair drier", "toothbrush"
+		]
+		self.bbox_color = bbox_color
+		self.bbox_thickness = bbox_thickness
+		self.bbox_font_color = bbox_font_color
+
+	"""
+	Get a single bounding box representing a stop sign
+	@return bbox a list of four elements representing the box
+		xmin, ymin, xmax, ymax
+	"""
+	def get_avg_bounding_box(self, frame, detections):
+		xmin, xmax, ymin, ymax, confidence = 0, 0, 0, 0, 0
+		found_stop_sign = False
+		# Compute average xmin, xmax, ymin, and ymax for stop signs
+		for detection in detections:
+			if self.labelMap[detection.label] == "stop sign":
+				found_stop_sign = True
+				xmin += detection.xmin
+				ymin += detection.ymin
+				xmax += detection.xmax
+				ymax += detection.ymax
+				confidence += detection.confidence
+		# If we didn't find a box, return None
+		if not found_stop_sign:
+			return None
+		return list(np.array([xmin, ymin, xmax, ymax, confidence]) / len(detections))
+
+	def get_minmax_bounding_box(self, frame, detections):
+		bbox = [frame.shape[0], frame.shape[1], 0, 0, 0]
+		for detection in detections:
+			if detection.xmin < bbox[0]:
+				bbox[0] = detection.xmin
+			if detection.ymin < bbox[1]:
+				bbox[1] = detection.ymin
+			if detection.xmax > bbox[2]:
+				bbox[2] = detection.xmax
+			if detection.ymax > bbox[3]:
+				bbox[3] = detection.ymax
+			bbox[4] += detection.confidence
+		if len(detections) != 0:
+			bbox[4] = bbox[4] / len(detections)
+		return bbox
+
+	# nn data, being the bounding box locations, are in <0..1> range - they need to be normalized with frame width/height
+	def frame_norm(self, frame, bbox):
+		normVals = np.full(len(bbox), frame.shape[0])
+		normVals[::2] = frame.shape[1]
+		return (np.clip(np.array(bbox), 0, 1) * normVals).astype(int)
+
+	def draw_bounding_boxes(self, frame, detections):
+		bbox = self.get_avg_bounding_box(frame, detections)
+		# If we didn't find a stop sign, return no bounding box
+		if bbox == None:
+			return (frame, None)
+		
+		# Store confidence and normalize the bbox to fit the image
+		confidence = bbox[4]
+		bbox = self.frame_norm(frame, (bbox[0], bbox[1], bbox[2], bbox[3]))
+
+		# Draw a bounding box on the image
+		cv2.putText(frame, f"{int(confidence)}%", (bbox[0] + 10, bbox[1] + 40), cv2.FONT_HERSHEY_TRIPLEX, 0.5, self.bbox_font_color)
+		frame = cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), self.bbox_color, self.bbox_thickness)
+		return (frame, bbox)
