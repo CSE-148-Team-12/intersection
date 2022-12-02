@@ -1,8 +1,9 @@
 import cv2 as cv2
 import numpy as np
+from util import RunningAverager
 
 class StopSignDetector():
-	def __init__(self, bbox_color = (255, 255, 255), bbox_thickness = 2, bbox_font_color = (255,255,255)):
+	def __init__(self, threshold = 650, history_len = 10, bbox_color = (255, 255, 255), bbox_thickness = 2, bbox_font_color = (255,255,255)):
 		self.labelMap = [
 			"person",         "bicycle",    "car",           "motorbike",     "aeroplane",   "bus",           "train",
 			"truck",          "boat",       "traffic light", "fire hydrant",  "stop sign",   "parking meter", "bench",
@@ -20,6 +21,9 @@ class StopSignDetector():
 		self.bbox_color = bbox_color
 		self.bbox_thickness = bbox_thickness
 		self.bbox_font_color = bbox_font_color
+		self.threshold = threshold
+		self.history_len = history_len
+		self.averager = RunningAverager(history_len = self.history_len)
 
 	"""
 	Get a single bounding box representing a stop sign
@@ -79,3 +83,31 @@ class StopSignDetector():
 		cv2.putText(frame, f"{int(confidence)}%", (bbox[0] + 10, bbox[1] + 40), cv2.FONT_HERSHEY_TRIPLEX, 0.5, self.bbox_font_color)
 		frame = cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), self.bbox_color, self.bbox_thickness)
 		return (frame, bbox)
+
+	"""
+	Returns a boolean of whether we should stop
+	@param frame the raw image frame
+	@param detections the detections of the neural network
+	@param show_image whether to imshow the stop sign bounding box
+	@return boolean representing whether we should stop
+	"""
+	def detect_stop_sign(self, frame, detections, show_image = False):
+		# Draw bounding boxes using the detections
+		box_frame, bbox = self.draw_bounding_boxes(frame, detections)
+		
+		# If we don't see a stop sign at all, return
+		if bbox is None:
+			return False
+
+		# Draw images if required
+		if show_image:
+			cv2.imshow("Stop Sign Detection", box_frame)
+			cv2.waitKey(50)
+
+		# Compute the size of the bounding box and update the running average
+		stop_sign_size = (bbox[3] - bbox[1]) * (bbox[2] - bbox[0])
+		stop_sign_size = self.averager.update(stop_sign_size)
+		print(stop_sign_size)
+
+		# Stop if we see a stop sign
+		return stop_sign_size > self.threshold

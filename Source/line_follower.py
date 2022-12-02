@@ -16,21 +16,25 @@ class LineFollower():
 	"""
 	Computes the steering values for the car given a frame
 	@param frame the BGR frame to process
-	@return servo_angle the proposed angle of the servo
+	@return (frame, servo_angle) the processing frame and proposed angle of the servo
 	"""
 	def get_new_steering(self, frame):
 		# Crop the image to a small region
-		frame = frame[self.crop[2]:self.crop[3], self.crop[0]:self.crop[1], :]
+		frame = frame[self.crop[0]:self.crop[1], self.crop[2]:self.crop[3], :]
 		
 		# Filter for blues and greens in the cropped region
 		frame = self.filter_blue_green(frame)
 		
 		# Count the number of blues and greens
-		green_count = np.count_nonzero(frame[1])
-		blue_count = np.count_nonzero(frame[0])
+		green_count = np.count_nonzero(frame[:, :, 1])
+		blue_count = np.count_nonzero(frame[:, :, 0])
+
+		# Calculate servo angle
+		servo_angle = np.clip((green_count - blue_count) / self.turn_divisor, -0.5, 0.5) + 0.5
+		#print(f'Green: {green_count}\t Blue: {blue_count}\t Servo: {servo_angle}')
 
 		# Compare the two counts and generate steering values
-		return np.clip((green_count - blue_count) / self.turn_divisor, -0.5, 0.5) + 0.5
+		return (frame, servo_angle)
 	
 	"""
 	Filters for the colors blue and green in a frame
@@ -42,7 +46,7 @@ class LineFollower():
 		hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
 		# Filter for blues and greens
-		blue, red, green = cv2.split(frame)
+		blue, green, red = cv2.split(frame)
 		blue_mask = cv2.inRange(hsv_frame, self.lower_blue, self.upper_blue)
 		blue = np.bitwise_and(blue, blue_mask)
 		green_mask = cv2.inRange(hsv_frame, self.lower_green, self.upper_green)

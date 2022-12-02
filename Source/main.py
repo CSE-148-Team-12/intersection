@@ -2,23 +2,54 @@
 from sys import argv
 import cv2 as cv2
 import numpy as np
-from vesc_control import *
-from stop_sign_detector import *
+from time import sleep
 
 # Import relevant sections of the codebase
 from vesc_control import VESCControl, VESCControl_Dummy
 from oakd_control import OAKDControl, OAKDControl_Dummy
 from stop_sign_detector import StopSignDetector
+from line_follower import LineFollower
+from util import RunningAverager
+from turn_system import TurnSystem
 
 class Robot:
 	def __init__(self, args):
 		# Hyperparameters belong in this section
-		#self.image_width = 320
-		#elf.image_height = 180
-
 		self.image_width = 416
 		self.image_height = 416
-		self.throttle = .06
+		
+		# LineFollower arguments
+		self.turn_divisor = 15000
+		self.blue_green_crop = (315, 415, 0, self.image_width)
+		# Daytime thresholds
+		#self.lower_blue = (90, 0, 160)
+		#self.upper_blue = (140, 255, 255)
+		#self.lower_green = (40, 100, 30)
+		#self.upper_green = (80, 255, 255)
+		# Night time thresholds
+		self.lower_blue = (90, 0, 30)
+		self.upper_blue = (140, 255, 255)
+		self.lower_green = (40, 0, 80)
+		self.upper_green = (80, 255, 150)
+
+		# Stop sign algorithm parameters
+		self.stop_sign_history_len = 10
+		self.stop_sign_threshold = 8500
+		self.stop_sign_sleep = 1.3
+
+		# Vesc parameters
+		self.throttle = 0.03
+		self.vesc_history_len = 4
+
+		#turn parameters
+		self.left_angle = .275
+		self.straight_angle = .5
+		self.right_angle = .9
+		self.left_throttle = .025
+		self.straight_throttle = .02
+		self.right_throttle = .02
+		self.sleep_time = 4
+
 
 		# Required constants belong in this section
 		self.vesc_serial = '/dev/serial/by-id/usb-STMicroelectronics_ChibiOS_RT_Virtual_COM_Port_304-if00'
@@ -39,9 +70,18 @@ class Robot:
 			self.camera = OAKDControl(image_width=self.image_width, image_height=self.image_height)
 			self.vesc = VESCControl(self.vesc_serial)
 			self.vesc.reset()
+			
 
 		# Initialize related objects (e.g. line follower)
-		self.stop_sign_detector = StopSignDetector()
+		self.stop_sign_detector = StopSignDetector(threshold = self.stop_sign_threshold, 
+			history_len = self.stop_sign_history_len)
+		self.line_follower = LineFollower(turn_divisor = self.turn_divisor, crop = self.blue_green_crop,
+			lower_blue = self.lower_blue, upper_blue = self.upper_blue, lower_green = self.lower_green,
+			upper_green = self.upper_green)
+		self.vesc_averager = RunningAverager(history_len = self.vesc_history_len, initial_value = 0.5)
+		self.turn_system = TurnSystem(self.left_angle,self.straight_angle,self.right_angle,self.left_throttle, 
+			self.straight_throttle, self.right_throttle, self.sleep_time)
+
 	
 	"""
 	Main function for running through the intersection.
@@ -49,41 +89,43 @@ class Robot:
 	Please write the majority of the code in other files (e.g. stop_sign_detector.py)
 	"""
 	def run_intersection(self):
-		avg_len = 10
-		stop_sign_size_list = [0 * avg_len]
-		self.vesc.set_throttle(self.throttle)
 		while(True):
 			try:
-				# All loop body code belongs in here
-				# Hyperparameters belong in the init function
-				frame = self.camera.get_frame()
-				detections = self.camera.get_detections()
-				frame, bbox = self.stop_sign_detector.draw_bounding_boxes(frame, detections)
+				print("Following lines until a stop sign is reached")
+				while(True):
+					# All loop body code belongs in here
+					# Hyperparameters belong in the init function
+					frame = self.camera.get_frame()
+					cv2.imshow("Frame", frame)
 
-				cv2.imshow("Frame", frame)
-				cv2.waitKey(50)
+					bg_frame, steering = self.line_follower.get_new_steering(frame)
 
-				if bbox is None:
-					continue
-				
-				frame = frame[bbox[1]:bbox[3], bbox[0]:bbox[2]]
-				cv2.imshow("Stop Sign", frame)
+					cv2.imshow("Blue Green", bg_frame)
+					cv2.waitKey(50)
 
-				stop_sign_size = frame.shape[0] * frame.shape[1]
-				stop_sign_size_list[-1] = stop_sign_size
-				for i in range(len(stop_sign_size_list) - 1):
-					stop_sign_size_list[i] = stop_sign_size_list[i+1]
-				stop_sign_size = sum(stop_sign_size_list) / avg_len
-				print(stop_sign_size)
+					steering = self.vesc_averager.update(steering)
+					self.vesc.set_servo(steering)
+					self.vesc.set_throttle(self.throttle)
 
-				if (stop_sign_size) > 650:
-					self.vesc.set_throttle(0)
-					break
+					# If we see a stop sign, break the loop
+					detections = self.camera.get_detections()
+					if self.stop_sign_detector.detect_stop_sign(frame, detections, show_image = True):
+						sleep(1.3)
+						self.vesc.set_throttle(0)
+						break
 
+				# Turning code here
+				steering, turn_throttle, sleep_time = self.turn_system.input_turn()
+				self.vesc_averager.initial_value = steering
+				self.vesc_averager.reset()
+				self.vesc.set_servo(steering)
+				self.vesc.set_throttle(turn_throttle)
+				sleep(sleep_time)
 
 			except KeyboardInterrupt:
 				break
 		print("Task completed.")
+		self.vesc.reset()
 
 robot = Robot(argv)
 robot.run_intersection()
