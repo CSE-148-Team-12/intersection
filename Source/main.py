@@ -6,8 +6,8 @@ from time import sleep
 
 # Import relevant sections of the codebase
 from vesc_control import VESCControl, VESCControl_Dummy
-from oakd_control import OAKDControl, OAKDControl_Dummy
-from stop_sign_detector import StopSignDetector
+from oakd_control_depth import OAKDControl, OAKDControl_Dummy
+from stop_sign_detector_depth import StopSignDetector
 from line_follower import LineFollower
 from util import RunningAverager
 from turn_system import TurnSystem
@@ -17,25 +17,26 @@ class Robot:
 		# Hyperparameters belong in this section
 		self.image_width = 416
 		self.image_height = 416
+		self.fps = 20
 		
 		# LineFollower arguments
-		self.turn_divisor = 15000
+		self.turn_divisor = 20000
 		self.blue_green_crop = (315, 415, 0, self.image_width)
 		# Daytime thresholds
-		#self.lower_blue = (90, 0, 160)
+		#self.lower_blue = (90, 20, 160) #increased sat from 0 to 20
 		#self.upper_blue = (140, 255, 255)
-		#self.lower_green = (40, 100, 30)
+		#self.lower_green = (40, 20, 30) # reduced saturation from 100 to 20
 		#self.upper_green = (80, 255, 255)
 		# Night time thresholds
-		self.lower_blue = (90, 0, 30)
-		self.upper_blue = (140, 255, 255)
-		self.lower_green = (40, 0, 80)
-		self.upper_green = (80, 255, 150)
+		self.lower_blue = (90, 20, 100) # Increased threshold from 30 to 50
+		self.upper_blue = (140, 150, 255)
+		self.lower_green = (40, 40, 100)
+		self.upper_green = (80, 150, 150)
 
 		# Stop sign algorithm parameters
-		self.stop_sign_history_len = 10
-		self.stop_sign_threshold = 8500
-		self.stop_sign_sleep = 1.3
+		self.stop_sign_history_len = 1
+		self.stop_sign_threshold = 100 #4500
+		self.stop_sign_sleep = 1
 
 		# Vesc parameters
 		self.throttle = 0.03
@@ -98,20 +99,35 @@ class Robot:
 					frame = self.camera.get_frame()
 					cv2.imshow("Frame", frame)
 
+					depth = self.camera.get_depth()
+					cv2.imshow("depth", depth)
+
 					bg_frame, steering = self.line_follower.get_new_steering(frame)
 
 					cv2.imshow("Blue Green", bg_frame)
 					cv2.waitKey(50)
 
 					steering = self.vesc_averager.update(steering)
+					# if steering > 0.8 or steering < 0.2:
+					# 	self.throttle = 0.015
+					# else:
+					# 	self.throttle = 0.03
 					self.vesc.set_servo(steering)
 					self.vesc.set_throttle(self.throttle)
 
 					# If we see a stop sign, break the loop
-					detections = self.camera.get_detections()
-					if self.stop_sign_detector.detect_stop_sign(frame, detections, show_image = True):
-						sleep(1.3)
-						self.vesc.set_throttle(0)
+					#detections = self.camera.get_detections()
+					if self.stop_sign_detector.detect_stop_sign(frame, depth, show_image = True):
+						for _ in range(0, int(self.stop_sign_sleep * self.fps)):
+							frame = self.camera.get_frame()
+							bg_frame, steering = self.line_follower.get_new_steering(frame)
+							cv2.imshow("Frame", frame)
+							cv2.imshow("Blue Green", bg_frame)
+							cv2.waitKey(50)
+							steering = self.vesc_averager.update(steering)
+							self.vesc.set_servo(steering)
+							self.vesc.set_throttle(self.throttle)
+						self.vesc.reset()
 						break
 
 				# Turning code here

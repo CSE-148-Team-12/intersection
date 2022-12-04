@@ -31,21 +31,22 @@ class StopSignDetector():
 		xmin, ymin, xmax, ymax
 	"""
 	def get_avg_bounding_box(self, frame, detections):
-		xmin, xmax, ymin, ymax, confidence = 0, 0, 0, 0, 0
+		xmin, xmax, ymin, ymax, confidence, count = 0, 0, 0, 0, 0, 0
 		found_stop_sign = False
 		# Compute average xmin, xmax, ymin, and ymax for stop signs
 		for detection in detections:
-			if self.labelMap[detection.label] == "stop sign":
+			if self.labelMap[detection.label] == "stop sign" and detection.confidence > 50:
 				found_stop_sign = True
 				xmin += detection.xmin
 				ymin += detection.ymin
 				xmax += detection.xmax
 				ymax += detection.ymax
 				confidence += detection.confidence
+				count += 1
 		# If we didn't find a box, return None
 		if not found_stop_sign:
 			return None
-		return list(np.array([xmin, ymin, xmax, ymax, confidence]) / len(detections))
+		return list(np.array([xmin, ymin, xmax, ymax, confidence]) / count)
 
 	def get_minmax_bounding_box(self, frame, detections):
 		bbox = [frame.shape[0], frame.shape[1], 0, 0, 0]
