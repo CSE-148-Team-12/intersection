@@ -7,8 +7,6 @@ class OAKDControl():
 
 		self.dai = __import__('depthai')
 
-		self.nn_path = "Data/yolo-v4-tiny-tf_openvino_2021.4_6shave.blob"
-
 		# Create pipeline
 		self.pipeline = self.dai.Pipeline()
 
@@ -19,23 +17,16 @@ class OAKDControl():
 		monoLeft = self.pipeline.create(self.dai.node.MonoCamera)
 		monoRight = self.pipeline.create(self.dai.node.MonoCamera)
 		self.depth = self.pipeline.create(self.dai.node.StereoDepth)
-
-		# Define the detection network
-		self.detectionNetwork = self.pipeline.create(self.dai.node.YoloDetectionNetwork)
 		
 		# Define the source output
 		xoutRgb = self.pipeline.create(self.dai.node.XLinkOut)
-
-		# Define the output of the neural netowrk
-		nnOut = self.pipeline.create(self.dai.node.XLinkOut)
 
 		# Define the depth output
 		xout = self.pipeline.create(self.dai.node.XLinkOut)
 
 		# Name the streams
 		xoutRgb.setStreamName("rgb")
-		nnOut.setStreamName("nn")
-		xout.setStreamName("disparity")
+		xout.setStreamName("depth")
 
 		# Set relevant properties of camera pipeline
 		camRgb.setPreviewSize(image_width, image_height)
@@ -44,7 +35,7 @@ class OAKDControl():
 		camRgb.setColorOrder(self.dai.ColorCameraProperties.ColorOrder.BGR)
 		camRgb.setFps(20)
 
-		#
+		# Set the resolutions of the mono cameras
 		monoLeft.setResolution(self.dai.MonoCameraProperties.SensorResolution.THE_720_P)
 		monoLeft.setBoardSocket(self.dai.CameraBoardSocket.LEFT)
 		monoRight.setResolution(self.dai.MonoCameraProperties.SensorResolution.THE_720_P)
@@ -56,22 +47,9 @@ class OAKDControl():
 		self.depth.setLeftRightCheck(True) # Better occlusion handling
 		self.depth.setExtendedDisparity(True) # Closer-in minimum depth
 		self.depth.setSubpixel(False) # Better accuracy for longer distances
-		
-		# Define network specific settings
-		self.detectionNetwork.setConfidenceThreshold(0.9)
-		self.detectionNetwork.setNumClasses(80)
-		self.detectionNetwork.setCoordinateSize(4)
-		self.detectionNetwork.setAnchors([10, 14, 23, 27, 37, 58, 81, 82, 135, 169, 344, 319])
-		self.detectionNetwork.setAnchorMasks({"side26": [1, 2, 3], "side13": [3, 4, 5]})
-		self.detectionNetwork.setIouThreshold(0.8)
-		self.detectionNetwork.setBlobPath(self.nn_path)
-		self.detectionNetwork.setNumInferenceThreads(2)
-		self.detectionNetwork.input.setBlocking(False)
 
 		# Link the preview to the output
-		camRgb.preview.link(self.detectionNetwork.input)
-		self.detectionNetwork.passthrough.link(xoutRgb.input)
-		self.detectionNetwork.out.link(nnOut.input)
+		camRgb.preview.link(xoutRgb)
 
 		# Link the mono cameras to the depth perception
 		monoLeft.out.link(self.depth.left)
@@ -83,18 +61,12 @@ class OAKDControl():
 
 		# Output queue will be used to get the rgb frames from the output defined above
 		self.qRgb = self.device.getOutputQueue(name="rgb", maxSize=4, blocking=False)
-		self.qDet = self.device.getOutputQueue(name="nn", maxSize=4, blocking=False)
-		self.q = self.device.getOutputQueue(name="disparity", maxSize=4, blocking=False)
+		self.q = self.device.getOutputQueue(name="depth", maxSize=4, blocking=False)
 
 	def get_frame(self):
 		# Wait until new data has arrived, blocking call
 		inRgb = self.qRgb.get()
 		return inRgb.getCvFrame()
-
-	def get_detections(self):
-		# Return the data from the neural network
-		inDet = self.qDet.get()
-		return inDet.detections
 
 	def get_depth(self):
 		# return the depth
@@ -118,4 +90,7 @@ class OAKDControl_Dummy():
 
 	def get_frame(self):
 		# Return a frame from the video that has been resized to match spec
+		return cv2.resize(self.video.read()[1], (self.image_width, self.image_height))
+
+	def get_depth(self):
 		return cv2.resize(self.video.read()[1], (self.image_width, self.image_height))
