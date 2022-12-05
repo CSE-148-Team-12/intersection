@@ -35,7 +35,7 @@ class StopSignDetector():
 		found_stop_sign = False
 		# Compute average xmin, xmax, ymin, and ymax for stop signs
 		for detection in detections:
-			if self.labelMap[detection.label] == "stop sign" and detection.confidence > 75:
+			if self.labelMap[detection.label] == "stop sign" and detection.confidence > 50:
 				found_stop_sign = True
 				xmin += detection.xmin
 				ymin += detection.ymin
@@ -85,18 +85,6 @@ class StopSignDetector():
 		frame = cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), self.bbox_color, self.bbox_thickness)
 		return (frame, bbox)
 
-	def xml_detector(self, frame):
-		frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) 
-		stop_data = cv2.CascadeClassifier('Data/stop_sign.xml')
-		found = stop_data.detectMultiScale(frame_gray, minSize = (20, 20)) 
-		if len(found) > 0:
-			for (x, y, width, height) in found:
-				frame = cv2.rectangle(frame, (x + height, y + width), (x, y),  
-					self.bbox_color, self.bbox_thickness)
-		else:
-			return (frame, None)
-		return (frame, (x, y, x + height, y + width))
-
 	"""
 	Returns a boolean of whether we should stop
 	@param frame the raw image frame
@@ -104,11 +92,10 @@ class StopSignDetector():
 	@param show_image whether to imshow the stop sign bounding box
 	@return boolean representing whether we should stop
 	"""
-	def detect_stop_sign(self, frame, depth, show_image = False):
+	def detect_stop_sign(self, frame, detections, show_image = False):
 		# Draw bounding boxes using the detections
-		#box_frame, bbox = self.draw_bounding_boxes(frame, detections)
-		box_frame, bbox = self.xml_detector(frame)
-
+		box_frame, bbox = self.draw_bounding_boxes(frame, detections)
+		
 		# If we don't see a stop sign at all, return
 		if bbox is None:
 			return False
@@ -119,22 +106,9 @@ class StopSignDetector():
 			cv2.waitKey(50)
 
 		# Compute the size of the bounding box and update the running average
-		c = 50
-		depth = depth[bbox[1] + c:bbox[3] - c, bbox[0] + c:bbox[2] - c]
-		stop_sign_distance = np.mean(box_frame)
-
-		print(stop_sign_distance)
-
-		return stop_sign_distance > self.threshold 
-
-		#stop_sign_size = (bbox[3] - bbox[1]) * (bbox[2] - bbox[0])
-		#stop_sign_size = self.averager.update(stop_sign_size)
-
-		#box_frame = box_frame[bbox[1]:bbox[3], bbox[0]:bbox[2]]
-		#stop_sign_distance = np.mean(box_frame)
-		#print(f'distance: {stop_sign_distance}\t size: {stop_sign_size}')
-
-		#cv2.imwrite("last_stop_sign.jpg", box_frame)
+		stop_sign_size = (bbox[3] - bbox[1]) * (bbox[2] - bbox[0])
+		stop_sign_size = self.averager.update(stop_sign_size)
+		print(stop_sign_size)
 
 		# Stop if we see a stop sign
-		#return stop_sign_distance > self.threshold and stop_sign_size > 4500
+		return stop_sign_size > self.threshold
