@@ -3,13 +3,11 @@ import numpy as np
 from util import RunningAverager
 
 class StopSignDetector():
-	def __init__(self, threshold = 650, depth_radius = 5, min_bbox_size = (20, 20), history_len = 10, bbox_color = (255, 255, 255), bbox_thickness = 2):
+	def __init__(self, threshold = 65, depth_radius = 5, min_bbox_size = (20, 20), history_len = 10, bbox_color = (255, 255, 255), bbox_thickness = 2):
 		self.bbox_color = bbox_color
 		self.bbox_thickness = bbox_thickness
-
 		self.depth_radius = depth_radius
 		self.min_bbox_size = min_bbox_size
-
 		self.threshold = threshold
 		self.history_len = history_len
 		self.averager = RunningAverager(history_len = self.history_len)
@@ -131,5 +129,8 @@ class StopSignDetector():
 		if show_image:
 			cv2.imshow("Depth map computation", depth)
 			cv2.imshow("Stop Sign Detection", box_frame)
+
+		# Implement averaging for the last several values
+		stop_sign_distance = self.averager.update(stop_sign_distance)
 
 		return stop_sign_distance > self.threshold

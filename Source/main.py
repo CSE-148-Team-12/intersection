@@ -6,8 +6,8 @@ from time import sleep
 
 # Import relevant sections of the codebase
 from vesc_control import VESCControl, VESCControl_Dummy
-from oakd_control_depth import OAKDControl, OAKDControl_Dummy
-from stop_sign_detector_depth import StopSignDetector
+from oakd_control import OAKDControl, OAKDControl_Dummy
+from stop_sign_detector import StopSignDetector
 from line_follower import LineFollower
 from util import RunningAverager
 from turn_system import TurnSystem
@@ -35,8 +35,9 @@ class Robot:
 
 		# Stop sign algorithm parameters
 		self.stop_sign_history_len = 1
-		self.stop_sign_threshold = 100 #4500
-		self.stop_sign_sleep = 1
+		self.stop_sign_threshold = 100
+		self.depth_radius = 5
+		self.min_bbox_size = (20, 20)
 
 		# Vesc parameters
 		self.throttle = 0.03
@@ -74,13 +75,13 @@ class Robot:
 			
 
 		# Initialize related objects (e.g. line follower)
-		self.stop_sign_detector = StopSignDetector(threshold = self.stop_sign_threshold, 
-			history_len = self.stop_sign_history_len)
+		self.stop_sign_detector = StopSignDetector(threshold = self.stop_sign_threshold, depth_radius = self.depth_radius, 
+			min_bbox_size = self.min_bbox_size, history_len = self.stop_sign_history_len)
 		self.line_follower = LineFollower(turn_divisor = self.turn_divisor, crop = self.blue_green_crop,
 			lower_blue = self.lower_blue, upper_blue = self.upper_blue, lower_green = self.lower_green,
 			upper_green = self.upper_green)
 		self.vesc_averager = RunningAverager(history_len = self.vesc_history_len, initial_value = 0.5)
-		self.turn_system = TurnSystem(self.left_angle,self.straight_angle,self.right_angle,self.left_throttle, 
+		self.turn_system = TurnSystem(self.left_angle, self.straight_angle, self.right_angle, self.left_throttle, 
 			self.straight_throttle, self.right_throttle, self.sleep_time)
 
 	def line_follow(self, frame, show_image = False):
@@ -103,7 +104,7 @@ class Robot:
 					frame = self.camera.get_frame(show_image = True)
 					depth = self.camera.get_depth(show_image = True)
 					self.line_follow(frame, show_image = True)
-					cv2.waitKey(50)
+					cv2.waitKey(1 / self.fps * 1000)
 
 					# If we see a stop sign, break the loop
 					if self.stop_sign_detector.detect_stop_sign(frame, depth, show_image = True):
@@ -113,7 +114,7 @@ class Robot:
 						for _ in range(0, int(self.stop_sign_sleep * self.fps)):							
 							frame = self.camera.get_frame(show_image = True)
 							self.line_follow(frame, show_image = True)
-							cv2.waitKey(50)
+							cv2.waitKey(1 / self.fps * 1000)
 
 						# Reset the vesc when we get to the line
 						print("Stopping car")
