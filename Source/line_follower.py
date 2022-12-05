@@ -18,7 +18,7 @@ class LineFollower():
 	@param frame the BGR frame to process
 	@return (frame, servo_angle) the processing frame and proposed angle of the servo
 	"""
-	def get_new_steering(self, frame):
+	def get_new_steering(self, frame, show_image = False):
 		# Crop the image to a small region
 		frame = frame[self.crop[0]:self.crop[1], self.crop[2]:self.crop[3], :]
 		
@@ -31,7 +31,9 @@ class LineFollower():
 
 		# Calculate servo angle
 		servo_angle = np.clip((green_count - blue_count) / self.turn_divisor, -0.5, 0.5) + 0.5
-		#print(f'Green: {green_count}\t Blue: {blue_count}\t Servo: {servo_angle}')
+		
+		if show_image:
+			cv2.imshow("blue green", frame)
 
 		# Compare the two counts and generate steering values
 		return (frame, servo_angle)

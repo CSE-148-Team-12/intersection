@@ -3,99 +3,105 @@ import numpy as np
 from util import RunningAverager
 
 class StopSignDetector():
-	def __init__(self, threshold = 650, history_len = 10, bbox_color = (255, 255, 255), bbox_thickness = 2, bbox_font_color = (255,255,255)):
-		self.labelMap = [
-			"person",         "bicycle",    "car",           "motorbike",     "aeroplane",   "bus",           "train",
-			"truck",          "boat",       "traffic light", "fire hydrant",  "stop sign",   "parking meter", "bench",
-			"bird",           "cat",        "dog",           "horse",         "sheep",       "cow",           "elephant",
-			"bear",           "zebra",      "giraffe",       "backpack",      "umbrella",    "handbag",       "tie",
-			"suitcase",       "frisbee",    "skis",          "snowboard",     "sports ball", "kite",          "baseball bat",
-			"baseball glove", "skateboard", "surfboard",     "tennis racket", "bottle",      "wine glass",    "cup",
-			"fork",           "knife",      "spoon",         "bowl",          "banana",      "apple",         "sandwich",
-			"orange",         "broccoli",   "carrot",        "hot dog",       "pizza",       "donut",         "cake",
-			"chair",          "sofa",       "pottedplant",   "bed",           "diningtable", "toilet",        "tvmonitor",
-			"laptop",         "mouse",      "remote",        "keyboard",      "cell phone",  "microwave",     "oven",
-			"toaster",        "sink",       "refrigerator",  "book",          "clock",       "vase",          "scissors",
-			"teddy bear",     "hair drier", "toothbrush"
-		]
+	def __init__(self, threshold = 650, depth_radius = 5, min_bbox_size = (20, 20), history_len = 10, bbox_color = (255, 255, 255), bbox_thickness = 2):
 		self.bbox_color = bbox_color
 		self.bbox_thickness = bbox_thickness
-		self.bbox_font_color = bbox_font_color
+
+		self.depth_radius = depth_radius
+		self.min_bbox_size = min_bbox_size
+
 		self.threshold = threshold
 		self.history_len = history_len
 		self.averager = RunningAverager(history_len = self.history_len)
 
 	"""
-	Get a single bounding box representing a stop sign
-	@return bbox a list of four elements representing the box
-		xmin, ymin, xmax, ymax
+	Uses an XML stop sign detector to create a bounding box around the stop sign
+	@param frame the frame to process
+	@return (frame, bboxes) tuple containing frame and list of bounding box tuples
 	"""
-	def get_avg_bounding_box(self, frame, detections):
-		xmin, xmax, ymin, ymax, confidence, count = 0, 0, 0, 0, 0, 0
-		found_stop_sign = False
-		# Compute average xmin, xmax, ymin, and ymax for stop signs
-		for detection in detections:
-			if self.labelMap[detection.label] == "stop sign" and detection.confidence > 75:
-				found_stop_sign = True
-				xmin += detection.xmin
-				ymin += detection.ymin
-				xmax += detection.xmax
-				ymax += detection.ymax
-				confidence += detection.confidence
-				count += 1
-		# If we didn't find a box, return None
-		if not found_stop_sign:
-			return None
-		return list(np.array([xmin, ymin, xmax, ymax, confidence]) / count)
-
-	def get_minmax_bounding_box(self, frame, detections):
-		bbox = [frame.shape[0], frame.shape[1], 0, 0, 0]
-		for detection in detections:
-			if detection.xmin < bbox[0]:
-				bbox[0] = detection.xmin
-			if detection.ymin < bbox[1]:
-				bbox[1] = detection.ymin
-			if detection.xmax > bbox[2]:
-				bbox[2] = detection.xmax
-			if detection.ymax > bbox[3]:
-				bbox[3] = detection.ymax
-			bbox[4] += detection.confidence
-		if len(detections) != 0:
-			bbox[4] = bbox[4] / len(detections)
-		return bbox
-
-	# nn data, being the bounding box locations, are in <0..1> range - they need to be normalized with frame width/height
-	def frame_norm(self, frame, bbox):
-		normVals = np.full(len(bbox), frame.shape[0])
-		normVals[::2] = frame.shape[1]
-		return (np.clip(np.array(bbox), 0, 1) * normVals).astype(int)
-
-	def draw_bounding_boxes(self, frame, detections):
-		bbox = self.get_avg_bounding_box(frame, detections)
-		# If we didn't find a stop sign, return no bounding box
-		if bbox == None:
-			return (frame, None)
-		
-		# Store confidence and normalize the bbox to fit the image
-		confidence = bbox[4]
-		bbox = self.frame_norm(frame, (bbox[0], bbox[1], bbox[2], bbox[3]))
-
-		# Draw a bounding box on the image
-		cv2.putText(frame, f"{int(confidence)}%", (bbox[0] + 10, bbox[1] + 40), cv2.FONT_HERSHEY_TRIPLEX, 0.5, self.bbox_font_color)
-		frame = cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), self.bbox_color, self.bbox_thickness)
-		return (frame, bbox)
-
 	def xml_detector(self, frame):
+		# Convert to gray and run the cascade classifier to find octagons
 		frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) 
 		stop_data = cv2.CascadeClassifier('Data/stop_sign.xml')
-		found = stop_data.detectMultiScale(frame_gray, minSize = (20, 20)) 
+		found = stop_data.detectMultiScale(frame_gray, minSize = self.min_bbox_size)
+		bboxes = []
 		if len(found) > 0:
+			# Iterate over bounding boxes
 			for (x, y, width, height) in found:
+
+				# Draw a rectangle on the raw frame
 				frame = cv2.rectangle(frame, (x + height, y + width), (x, y),  
 					self.bbox_color, self.bbox_thickness)
+
+				# Add the bounding box to the bbox list
+				bboxes.append((x, y, x + height, y + width))
 		else:
+			# If there are no bounding boxes, return None
 			return (frame, None)
-		return (frame, (x, y, x + height, y + width))
+		return (frame, bboxes)
+
+	"""
+	Compute the average depth map value of the stop sign
+	@param depth the depth map
+	@param bbox the bounding box
+	@return (depth, int) depth frame with rectangle and a number representing the 
+		average depth to the stop sign
+	"""
+	def find_average_bbox_depth(self, depth, bbox):
+		# Check that the box is big enough for us to compute a center of radius depth_radius
+		assert bbox[3] - bbox[1] > self.depth_radius * 2
+		assert bbox[2] - bbox[0] > self.depth_radius * 2
+
+		# Crop the depth map to contain only the stop sign
+		stop_sign = depth[bbox[1]:bbox[3], bbox[0]:bbox[2]]
+
+		# Find the center of the stop sign
+		midpoint = (stop_sign.shape[0] / 2, stop_sign.shape[1] / 2)
+		upper_bound = midpoint + self.depth_radius
+		lower_bound = midpoint - self.depth_radius
+
+		# Crop a box with radius self.depth_radius around the midpoint
+		stop_sign = stop_sign[lower_bound[1]:upper_bound[1], lower_bound[0]:upper_bound[0]]
+
+		# Compute the average depth
+		bbox_depth = np.mean(stop_sign)
+
+		# Draw the filter on the full depth frame
+		cv2.rectangle(depth, (upper_bound[0], upper_bound[1]), (lower_bound[0], upper_bound[1]),  
+			self.bbox_color, self.bbox_thickness)
+
+		# Average the depth in the new cropped box
+		return (depth, bbox_depth)
+
+	"""
+	Iterates over all of the bboxes to find the one with the minimum depth
+	We only want to keep the bbox closest to us (current stop sign)
+	@param depth the depth frame
+	@param bboxes the list of bboxes
+	@return (min_depth, bbox) the depth to the closest bbox and the closest bbox
+	"""
+	def find_min_bbox_depth(self, depth, bboxes):
+		# This is a depth map, so we want bigger values
+		min_depth, closest_bbox = -1, None
+
+		# Iterate over the bounding boxes
+		for bbox in bboxes:
+
+			# Compute the average depth to this stop sign
+			depth, bbox_depth = self.find_average_bbox_depth(depth, bbox, show_image = show_image)
+
+			# If this stop sign is the closest, make it the min depth
+			if bbox_depth > min_depth:
+				min_depth = bbox_depth
+				closest_bbox = bbox
+
+			# Draw a bbox on the depth frame
+			depth = cv2.rectangle(depth, (bbox[0], bbox[2]), (bbox[1], bbox[3]),  
+				self.bbox_color, self.bbox_thickness)
+			depth = cv2.putText(depth, f"{bbox_depth}", (bbox[0] + 10, bbox[1] + 40), cv2.FONT_HERSHEY_TRIPLEX, 0.5, self.bbox_font_color)
+
+		return (depth, min_depth, closest_bbox)
+		
 
 	"""
 	Returns a boolean of whether we should stop
@@ -106,35 +112,24 @@ class StopSignDetector():
 	"""
 	def detect_stop_sign(self, frame, depth, show_image = False):
 		# Draw bounding boxes using the detections
-		#box_frame, bbox = self.draw_bounding_boxes(frame, detections)
-		box_frame, bbox = self.xml_detector(frame)
+		box_frame, bboxes = self.xml_detector(frame)
 
 		# If we don't see a stop sign at all, return
-		if bbox is None:
-			return False
+		if bboxes is None:
+			return None
 
-		# Draw images if required
+		# Find the minimum depth bounding box
+		depth, stop_sign_distance, bbox = self.find_min_bbox_depth(depth, bboxes)
+
+		# Draw highlight boxes to signify the chosen stop sign
+		depth = cv2.rectangle(depth, (bbox[0], bbox[2]), (bbox[1], bbox[3]),  
+				(255, 0, 0), self.bbox_thickness)
+		box_frame = cv2.rectangle(box_frame, (bbox[0], bbox[2]), (bbox[1], bbox[3]),  
+				(255, 0, 0), self.bbox_thickness)
+
+		# If we are drawing bboxes on the pixels used for depth computations
 		if show_image:
+			cv2.imshow("Depth map computation", depth)
 			cv2.imshow("Stop Sign Detection", box_frame)
-			cv2.waitKey(50)
 
-		# Compute the size of the bounding box and update the running average
-		c = 50
-		depth = depth[bbox[1] + c:bbox[3] - c, bbox[0] + c:bbox[2] - c]
-		stop_sign_distance = np.mean(box_frame)
-
-		print(stop_sign_distance)
-
-		return stop_sign_distance > self.threshold 
-
-		#stop_sign_size = (bbox[3] - bbox[1]) * (bbox[2] - bbox[0])
-		#stop_sign_size = self.averager.update(stop_sign_size)
-
-		#box_frame = box_frame[bbox[1]:bbox[3], bbox[0]:bbox[2]]
-		#stop_sign_distance = np.mean(box_frame)
-		#print(f'distance: {stop_sign_distance}\t size: {stop_sign_size}')
-
-		#cv2.imwrite("last_stop_sign.jpg", box_frame)
-
-		# Stop if we see a stop sign
-		#return stop_sign_distance > self.threshold and stop_sign_size > 4500
+		return stop_sign_distance > self.threshold

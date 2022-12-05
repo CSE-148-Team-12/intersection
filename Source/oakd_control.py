@@ -63,17 +63,22 @@ class OAKDControl():
 		self.qRgb = self.device.getOutputQueue(name="rgb", maxSize=4, blocking=False)
 		self.q = self.device.getOutputQueue(name="depth", maxSize=4, blocking=False)
 
-	def get_frame(self):
+	def get_frame(self, show_image = False):
 		# Wait until new data has arrived, blocking call
 		inRgb = self.qRgb.get()
-		return inRgb.getCvFrame()
+		frame = inRgb.getCvFrame()
+		if show_image:
+			cv2.imshow("frame", frame)
+		return frame
 
-	def get_depth(self):
+	def get_depth(self, show_image = False):
 		# return the depth
 		inDep = self.q.get()
 		frame = inDep.getCvFrame()
 		frame = (frame * (255 / self.depth.initialConfig.getMaxDisparity())).astype(np.uint8)
-		return frame #cv2.applyColorMap(frame, cv2.COLORMAP_JET)
+		if show_image:
+			cv2.imshow("Depth map (colorized)", cv2.applyColorMap(frame, cv2.COLORMAP_JET))
+		return frame
 
 class OAKDControl_Dummy():
 	def __init__(self, file_name, image_width=320, image_height=180):

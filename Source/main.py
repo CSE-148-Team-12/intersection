@@ -83,6 +83,11 @@ class Robot:
 		self.turn_system = TurnSystem(self.left_angle,self.straight_angle,self.right_angle,self.left_throttle, 
 			self.straight_throttle, self.right_throttle, self.sleep_time)
 
+	def line_follow(self, frame, show_image = False):
+		_, steering = self.line_follower.get_new_steering(frame, show_image = show_image)
+		steering = self.vesc_averager.update(steering)
+		self.vesc.set_servo(steering)
+		self.vesc.set_throttle(self.throttle)
 	
 	"""
 	Main function for running through the intersection.
@@ -94,46 +99,35 @@ class Robot:
 			try:
 				print("Following lines until a stop sign is reached")
 				while(True):
-					# All loop body code belongs in here
-					# Hyperparameters belong in the init function
-					frame = self.camera.get_frame()
-					cv2.imshow("Frame", frame)
-
-					depth = self.camera.get_depth()
-					cv2.imshow("depth", depth)
-
-					bg_frame, steering = self.line_follower.get_new_steering(frame)
-
-					cv2.imshow("Blue Green", bg_frame)
+					# Follow the lines until a stop sign is reached
+					frame = self.camera.get_frame(show_image = True)
+					depth = self.camera.get_depth(show_image = True)
+					self.line_follow(frame, show_image = True)
 					cv2.waitKey(50)
 
-					steering = self.vesc_averager.update(steering)
-					# if steering > 0.8 or steering < 0.2:
-					# 	self.throttle = 0.015
-					# else:
-					# 	self.throttle = 0.03
-					self.vesc.set_servo(steering)
-					self.vesc.set_throttle(self.throttle)
-
 					# If we see a stop sign, break the loop
-					#detections = self.camera.get_detections()
 					if self.stop_sign_detector.detect_stop_sign(frame, depth, show_image = True):
-						for _ in range(0, int(self.stop_sign_sleep * self.fps)):
-							frame = self.camera.get_frame()
-							bg_frame, steering = self.line_follower.get_new_steering(frame)
-							cv2.imshow("Frame", frame)
-							cv2.imshow("Blue Green", bg_frame)
+						
+						# Follow the lines for self.stop_sign_sleep seconds
+						print(f'Following lines for {self.stop_sign_sleep} more seconds')
+						for _ in range(0, int(self.stop_sign_sleep * self.fps)):							
+							frame = self.camera.get_frame(show_image = True)
+							self.line_follow(frame, show_image = True)
 							cv2.waitKey(50)
-							steering = self.vesc_averager.update(steering)
-							self.vesc.set_servo(steering)
-							self.vesc.set_throttle(self.throttle)
+
+						# Reset the vesc when we get to the line
+						print("Stopping car")
 						self.vesc.reset()
 						break
 
-				# Turning code here
+				# Wait for user input and fetch required turing parameters once inputted
 				steering, turn_throttle, sleep_time = self.turn_system.input_turn()
+
+				# Reset the vesc averager so we don't have old weightings
 				self.vesc_averager.initial_value = steering
 				self.vesc_averager.reset()
+
+				# Set the vesc servo and throttle for sleep_time seconds
 				self.vesc.set_servo(steering)
 				self.vesc.set_throttle(turn_throttle)
 				sleep(sleep_time)
