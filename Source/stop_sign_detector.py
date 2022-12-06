@@ -3,9 +3,11 @@ import numpy as np
 from util import RunningAverager
 
 class StopSignDetector():
-	def __init__(self, threshold = 65, depth_radius = 5, min_bbox_size = (20, 20), history_len = 10, bbox_color = (255, 255, 255), bbox_thickness = 2):
+	def __init__(self, threshold = 65, depth_radius = 5, min_bbox_size = (20, 20), history_len = 10, 
+			bbox_color = (255, 255, 255), bbox_font_color = (255, 255, 255), bbox_thickness = 2):
 		self.bbox_color = bbox_color
 		self.bbox_thickness = bbox_thickness
+		self.bbox_font_color = bbox_font_color
 		self.depth_radius = depth_radius
 		self.min_bbox_size = min_bbox_size
 		self.threshold = threshold
@@ -54,9 +56,9 @@ class StopSignDetector():
 		stop_sign = depth[bbox[1]:bbox[3], bbox[0]:bbox[2]]
 
 		# Find the center of the stop sign
-		midpoint = (stop_sign.shape[0] / 2, stop_sign.shape[1] / 2)
-		upper_bound = midpoint + self.depth_radius
-		lower_bound = midpoint - self.depth_radius
+		midpoint = (int(stop_sign.shape[0] / 2), int(stop_sign.shape[1] / 2))
+		upper_bound = (midpoint[0] + self.depth_radius, midpoint[1] + self.depth_radius)
+		lower_bound = (midpoint[0] - self.depth_radius, midpoint[1] - self.depth_radius)
 
 		# Crop a box with radius self.depth_radius around the midpoint
 		stop_sign = stop_sign[lower_bound[1]:upper_bound[1], lower_bound[0]:upper_bound[0]]
@@ -65,8 +67,8 @@ class StopSignDetector():
 		bbox_depth = np.mean(stop_sign)
 
 		# Draw the filter on the full depth frame
-		cv2.rectangle(depth, (upper_bound[0], upper_bound[1]), (lower_bound[0], upper_bound[1]),  
-			self.bbox_color, self.bbox_thickness)
+		cv2.rectangle(depth, (lower_bound[0] + bbox[0], lower_bound[1] + bbox[1]), 
+			(upper_bound[0] + bbox[0], upper_bound[1] + bbox[1]), self.bbox_color, self.bbox_thickness)
 
 		# Average the depth in the new cropped box
 		return (depth, bbox_depth)
@@ -86,7 +88,7 @@ class StopSignDetector():
 		for bbox in bboxes:
 
 			# Compute the average depth to this stop sign
-			depth, bbox_depth = self.find_average_bbox_depth(depth, bbox, show_image = show_image)
+			depth, bbox_depth = self.find_average_bbox_depth(depth, bbox)
 
 			# If this stop sign is the closest, make it the min depth
 			if bbox_depth > min_depth:
@@ -94,7 +96,7 @@ class StopSignDetector():
 				closest_bbox = bbox
 
 			# Draw a bbox on the depth frame
-			depth = cv2.rectangle(depth, (bbox[0], bbox[2]), (bbox[1], bbox[3]),  
+			depth = cv2.rectangle(depth, (bbox[0], bbox[1]), (bbox[2], bbox[3]),  
 				self.bbox_color, self.bbox_thickness)
 			depth = cv2.putText(depth, f"{bbox_depth}", (bbox[0] + 10, bbox[1] + 40), cv2.FONT_HERSHEY_TRIPLEX, 0.5, self.bbox_font_color)
 
@@ -120,10 +122,8 @@ class StopSignDetector():
 		depth, stop_sign_distance, bbox = self.find_min_bbox_depth(depth, bboxes)
 
 		# Draw highlight boxes to signify the chosen stop sign
-		depth = cv2.rectangle(depth, (bbox[0], bbox[2]), (bbox[1], bbox[3]),  
-				(255, 0, 0), self.bbox_thickness)
-		box_frame = cv2.rectangle(box_frame, (bbox[0], bbox[2]), (bbox[1], bbox[3]),  
-				(255, 0, 0), self.bbox_thickness)
+		box_frame = cv2.rectangle(box_frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]),  
+				(0, 0, 255), self.bbox_thickness)
 
 		# If we are drawing bboxes on the pixels used for depth computations
 		if show_image:

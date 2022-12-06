@@ -25,20 +25,20 @@ class OAKDControl():
 		xout = self.pipeline.create(self.dai.node.XLinkOut)
 
 		# Name the streams
-		xoutRgb.setStreamName("rgb")
 		xout.setStreamName("depth")
+		xoutRgb.setStreamName("rgb")
 
 		# Set relevant properties of camera pipeline
 		camRgb.setPreviewSize(image_width, image_height)
-		camRgb.setResolution(self.dai.ColorCameraProperties.SensorResolution.THE_720_P) # Previously THE_1080_P
+		camRgb.setResolution(self.dai.ColorCameraProperties.SensorResolution.THE_1080_P) # Previously THE_1080_P
 		camRgb.setInterleaved(False)
 		camRgb.setColorOrder(self.dai.ColorCameraProperties.ColorOrder.BGR)
 		camRgb.setFps(20)
 
 		# Set the resolutions of the mono cameras
-		monoLeft.setResolution(self.dai.MonoCameraProperties.SensorResolution.THE_720_P)
+		monoLeft.setResolution(self.dai.MonoCameraProperties.SensorResolution.THE_400_P)
 		monoLeft.setBoardSocket(self.dai.CameraBoardSocket.LEFT)
-		monoRight.setResolution(self.dai.MonoCameraProperties.SensorResolution.THE_720_P)
+		monoRight.setResolution(self.dai.MonoCameraProperties.SensorResolution.THE_400_P)
 		monoRight.setBoardSocket(self.dai.CameraBoardSocket.RIGHT)
 
 		# Set relevant properties of depth perception camera
@@ -49,7 +49,7 @@ class OAKDControl():
 		self.depth.setSubpixel(False) # Better accuracy for longer distances
 
 		# Link the preview to the output
-		camRgb.preview.link(xoutRgb)
+		camRgb.preview.link(xoutRgb.input)
 
 		# Link the mono cameras to the depth perception
 		monoLeft.out.link(self.depth.left)
@@ -76,6 +76,7 @@ class OAKDControl():
 		inDep = self.q.get()
 		frame = inDep.getCvFrame()
 		frame = (frame * (255 / self.depth.initialConfig.getMaxDisparity())).astype(np.uint8)
+		frame = frame[20:-20, :]
 		if show_image:
 			cv2.imshow("Depth map (colorized)", cv2.applyColorMap(frame, cv2.COLORMAP_JET))
 		return frame
