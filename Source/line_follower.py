@@ -27,7 +27,7 @@ class LineFollower():
 		
 		# Count the number of blues and greens
 		green_count = np.count_nonzero(frame[:, :, 1])
-		blue_count = np.count_nonzero(frame[:, :, 0])
+		blue_count = np.count_nonzero(frame[:, :, 0]) * 0.8
 
 		# Calculate servo angle
 		servo_angle = np.clip((green_count - blue_count) / self.turn_divisor, -0.5, 0.5) + 0.5
