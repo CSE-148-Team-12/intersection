@@ -22,27 +22,12 @@ class Robot:
 		# LineFollower arguments
 		self.turn_divisor = 17500
 		self.blue_green_crop = (-101, -1, 0, self.image_width) # -101
-		# Daytime thresholds
-		#self.lower_blue = (90, 20, 160) #increased sat from 0 to 20
-		#self.upper_blue = (140, 255, 255)
-		#self.lower_green = (40, 20, 30) # reduced saturation from 100 to 20
-		#self.upper_green = (80, 255, 255)
-		# Daytime thresholds 2
+
+		# Current threshold values
 		self.lower_blue = (90, 35, 100)
 		self.upper_blue = (140, 255, 255)
 		self.lower_green = (40, 30, 10)
 		self.upper_green = (80, 255, 255)
-		# Night time thresholds
-		#self.lower_blue = (90, 20, 100) # Increased threshold from 30 to 50
-		#self.upper_blue = (140, 150, 255)
-		#self.lower_green = (40, 40, 100)
-		#self.upper_green = (80, 150, 150)
-		# Night time thresholds 2
-		#self.lower_blue = (90, 35, 100)
-		#self.upper_blue = (140, 255, 255)
-		#self.lower_green = (40, 50, 80)
-		#self.upper_green = (80, 255, 255)
-
 
 		# Stop sign algorithm parameters
 		self.stop_sign_sleep = 1.1
