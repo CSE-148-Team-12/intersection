@@ -39,11 +39,29 @@ Given enough time, we planned on implementing vehicle detection and right-of-way
 
 ### Software Overview
 
-### Flow Chart
+### Relevant Images
 
 ### How to run
 
+
 ## Challenges Faced
+
+### Glare
+
+### Nighttime vs Daytime Lighting
+
+### Narrow Camera FOV
+
+### Inaccurate Depth Readings
+
+### VESC Crashes from Large Adjustments
+
+### Canny and HoughLinesP Line Following
+
+### Red-Green Filtering
+
+### Tiny-Yolo Bounding Boxes
+
 
 ## Project Results
 
