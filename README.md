@@ -17,7 +17,11 @@ Given enough time, we planned on implementing vehicle detection and right-of-way
 ## Hardware
 ### Completed Car
 
+![Completed Car](https://github.com/CSE-148-Team-12/intersection/blob/main/Resources/Car%20Image%201.png)
+
 ### Project track
+
+![Project Track](https://github.com/CSE-148-Team-12/intersection/blob/main/Resources/Track.jpg)
 
 ### Camera Mount
 
@@ -25,7 +29,11 @@ Given enough time, we planned on implementing vehicle detection and right-of-way
 
 ![Acrylic Cut 1](https://github.com/CSE-148-Team-12/intersection/blob/main/Resources/Acrylic%20Cut%201.png)
 
+![Acrylic Cut 2](https://github.com/CSE-148-Team-12/intersection/blob/main/Resources/Acrylic%20Cut%202.png)
+
 ### Electrical Schematic
+
+![Electrical Schematic](https://github.com/CSE-148-Team-12/intersection/blob/main/Resources/Electrical%20Schematic.jpg)
 
 ## Software
 
