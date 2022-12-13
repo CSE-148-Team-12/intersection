@@ -25,7 +25,7 @@ Given enough time, we planned on implementing vehicle detection and right-of-way
 
 ### Camera Mount
 
-![Camera Mount](https://github.com/CSE-148-Team-12/intersection/blob/main/Resources/Camera_Mount.png)
+![Camera Mount](https://github.com/CSE-148-Team-12/intersection/blob/main/Resources/Camera_Mount.jpg)
 
 ### Acrylic Cut
 
