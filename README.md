@@ -19,6 +19,8 @@ Given enough time, we planned on implementing vehicle detection and right-of-way
 
 ![Completed Car](https://github.com/CSE-148-Team-12/intersection/blob/main/Resources/Car%20Image%201.png)
 
+![Completed Car](https://github.com/CSE-148-Team-12/intersection/blob/main/Resources/Car_Image2.jpg)
+
 ### Project track
 
 ![Project Track](https://github.com/CSE-148-Team-12/intersection/blob/main/Resources/Track.jpg)
